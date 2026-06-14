@@ -117,8 +117,15 @@ function makeNoteObject(note) {
 }
 
 // ---------- Poses ----------
+let currentArrangement = 'fan'; // stack | fan | spread | null (free / dropped)
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
+
+// Deterministic jitter per note so re-posing a stack does not reshuffle offsets.
+function stackRand(note, salt = 0) {
+  const x = Math.sin(note.id * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
 // A small, UNIFORM back-lean shared by every note: enough that a dropped note
 // topples instead of balancing on its bottom edge, but identical for all notes
 // so they stay parallel and never cut into each other when arranged.
@@ -133,23 +140,25 @@ function poseSpread() {
   });
 }
 
-function poseStack() {
+function poseStackNote(n, i) {
   // A loose pile: each note is flat but nudged with a tiny unique tilt and
   // offset so the stack reads as a real handful of foil, not a perfect block.
-  notes.forEach((n, i) => {
-    const tiltX = (Math.random() - 0.5) * 0.06;
-    const tiltY = (Math.random() - 0.5) * 0.08;
-    const tiltZ = 0.04 + (Math.random() - 0.5) * 0.05;
-    _e.set(-Math.PI / 2 + tiltX, tiltY, tiltZ);
-    _q.setFromEuler(_e);
-    const offX = (Math.random() - 0.5) * 0.04;
-    const offZ = (Math.random() - 0.5) * 0.04;
-    n.setPose(
-      new THREE.Vector3(offX, FLOOR_Y + 0.02 + i * 0.013, offZ),
-      _q.clone(),
-      1,
-    );
-  });
+  const tiltX = (stackRand(n, 1) - 0.5) * 0.06;
+  const tiltY = (stackRand(n, 2) - 0.5) * 0.08;
+  const tiltZ = 0.04 + (stackRand(n, 3) - 0.5) * 0.05;
+  _e.set(-Math.PI / 2 + tiltX, tiltY, tiltZ);
+  _q.setFromEuler(_e);
+  const offX = (stackRand(n, 4) - 0.5) * 0.04;
+  const offZ = (stackRand(n, 5) - 0.5) * 0.04;
+  n.setPose(
+    new THREE.Vector3(offX, FLOOR_Y + 0.02 + i * 0.013, offZ),
+    _q.clone(),
+    1,
+  );
+}
+
+function poseStack() {
+  notes.forEach((n, i) => poseStackNote(n, i));
 }
 
 function poseFan() {
@@ -177,7 +186,10 @@ function poseFlip() {
   });
 }
 
-function drop() { notes.forEach((n) => { n.holdTarget = 0; }); }
+function drop() {
+  currentArrangement = null;
+  notes.forEach((n) => { n.holdTarget = 0; });
+}
 
 function ruffle() {
   windBurst = 7;
@@ -187,7 +199,24 @@ function ruffle() {
 }
 
 function explode() {
+  currentArrangement = null;
   notes.forEach((n) => n.explode());
+}
+
+function applyArrangement(kind) {
+  currentArrangement = kind;
+  ({ stack: poseStack, fan: poseFan, spread: poseSpread })[kind]?.();
+}
+
+function refreshArrangement({ added } = {}) {
+  if (!currentArrangement) return;
+  if (added && currentArrangement === 'stack') {
+    const n = notes[notes.length - 1];
+    poseStackNote(n, notes.length - 1);
+    n.resetToAnchor();
+    return;
+  }
+  applyArrangement(currentArrangement);
 }
 
 // ---------- Note count ----------
@@ -197,19 +226,19 @@ function addNote(silent) {
   const n = new Note();
   notes.push(n);
   makeNoteObject(n);
-  if (!silent) { poseSpread(); flashCount(); }
+  if (!silent) { refreshArrangement({ added: true }); flashCount(); }
 }
 function removeNote() {
   if (notes.length <= 1) return;
   const n = notes.pop();
   n.mesh.parent.removeFromParent();
   n.geo.dispose();
-  poseSpread();
+  refreshArrangement();
   flashCount();
 }
 function reset() {
   while (notes.length > 1) removeNote();
-  poseSpread();
+  applyArrangement('spread');
   notes[0].resetToAnchor();
   flashCount();
 }
@@ -277,8 +306,9 @@ renderer.domElement.addEventListener('pointercancel', endDrag);
 document.getElementById('ui').addEventListener('click', (e) => {
   const act = e.target.closest('button')?.dataset.act;
   if (!act) return;
-  ({ add: () => addNote(), remove: removeNote, stack: poseStack, fan: poseFan,
-     spread: poseSpread, ruffle, flip: poseFlip, drop, explode, reset })[act]?.();
+  ({ add: () => addNote(), remove: removeNote, stack: () => applyArrangement('stack'),
+     fan: () => applyArrangement('fan'), spread: () => applyArrangement('spread'),
+     ruffle, flip: poseFlip, drop, explode, reset })[act]?.();
 });
 
 const shineSlider = document.getElementById('shine');
@@ -427,7 +457,7 @@ async function boot() {
   TEMPLATE = buildTemplate();
   addNote(true);
   for (let i = 0; i < 9; i++) addNote(true);
-  poseFan();
+  applyArrangement('fan');
   notes.forEach((n) => n.resetToAnchor());
   flashCount();
 
@@ -436,10 +466,10 @@ async function boot() {
   setTimeout(() => loader.remove(), 650);
 
   // Debug / console handle, plus a ?demo=fan|stack|spread hook for quick checks.
-  window.gb = { notes, addNote, poseFan, poseStack, poseSpread, drop, ruffle, explode, scene, camera };
+  window.gb = { notes, addNote, poseFan, poseStack, poseSpread, applyArrangement, drop, ruffle, explode, scene, camera };
   const demo = new URLSearchParams(location.search).get('demo');
   if (demo) {
-    ({ fan: poseFan, stack: poseStack, spread: poseSpread })[demo]?.();
+    applyArrangement(demo);
     notes.forEach((n) => n.resetToAnchor());
   }
 
