@@ -86,6 +86,10 @@ export class Note {
     this.grabPoint = new THREE.Vector3();
 
     this._restWorld = new THREE.Vector3();
+    this._spinR = new THREE.Vector3();
+    this._spinV = new THREE.Vector3();
+    this.bendScale = 1;
+    this.ruffleDelay = 0;
     this.resetToAnchor();
   }
 
@@ -112,6 +116,14 @@ export class Note {
   }
 
   step(dt, wind, time) {
+    if (this.ruffleDelay > 0) {
+      this.ruffleDelay -= dt;
+      if (this.ruffleDelay <= 0) {
+        this.ruffleDelay = 0;
+        this._applyRuffle();
+      }
+    }
+
     this.hold += (this.holdTarget - this.hold) * Math.min(1, dt * 4);
     const free = 1 - this.hold;
     const dt2 = dt * dt;
@@ -153,8 +165,13 @@ export class Note {
       }
     }
 
+    if (this.bendScale < 1) {
+      this.bendScale += (1 - this.bendScale) * Math.min(1, dt * 3);
+    }
+
     // Bending stiffness: pull each triplet's centre toward the midpoint of its
     // neighbours so the sheet resists creasing and springs back toward flat.
+    const bendStiff = BEND_STIFF * this.bendScale;
     const bd = this.bend;
     for (let iter = 0; iter < BEND_ITERS; iter++) {
       for (let t = 0; t < bd.length; t += 3) {
@@ -162,9 +179,9 @@ export class Note {
         const ex = (pos[a] + pos[c]) * 0.5 - pos[m];
         const ey = (pos[a + 1] + pos[c + 1]) * 0.5 - pos[m + 1];
         const ez = (pos[a + 2] + pos[c + 2]) * 0.5 - pos[m + 2];
-        const sm = ex * BEND_STIFF, smy = ey * BEND_STIFF, smz = ez * BEND_STIFF;
+        const sm = ex * bendStiff, smy = ey * bendStiff, smz = ez * bendStiff;
         pos[m] += sm; pos[m + 1] += smy; pos[m + 2] += smz;
-        const half = BEND_STIFF * 0.5;
+        const half = bendStiff * 0.5;
         pos[a] -= ex * half; pos[a + 1] -= ey * half; pos[a + 2] -= ez * half;
         pos[c] -= ex * half; pos[c + 1] -= ey * half; pos[c + 2] -= ez * half;
       }
@@ -201,16 +218,60 @@ export class Note {
     }
   }
 
+  // Queue or fire a ruffle. A positive delay staggers cascades across notes.
+  ruffle(delay = 0) {
+    if (delay > 0) {
+      this.ruffleDelay = delay;
+      return;
+    }
+    this._applyRuffle();
+  }
+
   // Shake the sheet: inject a ripple impulse and briefly relax the hold so it
   // ruffles in place, then springs back to its pose as `hold` recovers.
-  ruffle() {
+  _applyRuffle() {
     this.hold = Math.min(this.hold, 0.03);
+    const phase = this.id * 2.17;
     for (let i = 0; i < this.n; i++) {
       const k = i * 3;
       const lx = this.restLocal[k], ly = this.restLocal[k + 1];
-      const wave = Math.sin(ly * 5.0 + lx * 3.0) * 0.07 + (Math.random() - 0.5) * 0.05;
+      const wave = Math.sin(ly * 5.0 + lx * 3.0 + phase) * 0.07 + (Math.random() - 0.5) * 0.05;
       this.prev[k + 2] -= wave;                       // out-of-plane ripple velocity
       this.prev[k] -= (Math.random() - 0.5) * 0.035;  // a little lateral snap
+    }
+  }
+
+  // Light toss: release the pose lock, fling linearly, and spin each sheet so it
+  // tumbles with visible torsion instead of sliding flat through the air.
+  explode() {
+    this.hold = 0;
+    this.holdTarget = 0;
+    this.bendScale = 0.3;
+
+    const angle = Math.random() * Math.PI * 2;
+    const horiz = 0.22 + Math.random() * 0.3;
+    const linX = Math.cos(angle) * horiz;
+    const linY = 0.1 + Math.random() * 0.18;
+    const linZ = Math.sin(angle) * horiz;
+
+    const spinX = (Math.random() - 0.5) * 4.2;
+    const spinY = (Math.random() - 0.5) * 3.4;
+    const spinZ = (Math.random() - 0.5) * 5.6;
+
+    const r = this._spinR;
+    const v = this._spinV;
+    for (let i = 0; i < this.n; i++) {
+      const k = i * 3;
+      r.set(this.restLocal[k], this.restLocal[k + 1], this.restLocal[k + 2]);
+      v.set(
+        spinY * r.z - spinZ * r.y,
+        spinZ * r.x - spinX * r.z,
+        spinX * r.y - spinY * r.x,
+      ).applyQuaternion(this.anchorQuat);
+
+      this.prev[k] = this.pos[k] - linX - v.x - (Math.random() - 0.5) * 0.03;
+      this.prev[k + 1] = this.pos[k + 1] - linY - v.y - (Math.random() - 0.5) * 0.025;
+      this.prev[k + 2] = this.pos[k + 2] - linZ - v.z - (Math.random() - 0.5) * 0.03;
     }
   }
 }

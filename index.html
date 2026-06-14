@@ -62,12 +62,19 @@
 
     button {
       appearance: none; cursor: pointer;
-      padding: 9px 6px; border-radius: 11px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      padding: 8px 6px 7px; border-radius: 11px;
       font-size: 12px; font-weight: 550; color: #ece4d4;
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.08);
       transition: background .15s ease, border-color .15s ease, transform .06s ease, color .15s ease;
     }
+    button .key {
+      font-size: 9px; font-weight: 650; letter-spacing: 0.6px; line-height: 1;
+      color: rgba(154, 144, 128, 0.95); text-transform: uppercase;
+    }
+    button.primary .key { color: rgba(42, 31, 8, 0.5); }
+    button.accent .key { color: rgba(233, 200, 119, 0.55); }
     button:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.16); }
     button:active { transform: translateY(1px) scale(0.985); }
     button.primary {
@@ -95,10 +102,6 @@
     .hint { font-size: 10.5px; line-height: 1.6; color: #8c8474;
       border-top: 1px solid var(--stroke); padding-top: 12px; }
     .hint b { color: #b8af9c; font-weight: 600; }
-    .hint .keys { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-    .hint kbd { font-family: inherit; font-size: 9.5px; color: #cfc6b3;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-      border-bottom-width: 2px; border-radius: 5px; padding: 2px 6px; }
 
     #loader {
       position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
@@ -118,14 +121,14 @@
     <div class="brand">
       <div class="dot"></div>
       <div class="title"><b>Goldback</b><span>Studio</span></div>
-      <div class="badge"><b id="noteCount">1</b><span>notes</span></div>
+      <div class="badge"><b id="noteCount">10</b><span>notes</span></div>
     </div>
 
     <div class="group">
       <label class="head">Quantity</label>
       <div class="grid two">
-        <button class="primary" data-act="add">＋ Add</button>
-        <button data-act="remove">－ Remove</button>
+        <button class="primary" data-act="add">＋ Add<span class="key">hold A</span></button>
+        <button data-act="remove">－ Remove<span class="key">hold X</span></button>
       </div>
     </div>
 
@@ -140,10 +143,11 @@
 
     <div class="group">
       <label class="head">Play</label>
-      <div class="grid">
-        <button data-act="ruffle">Ruffle</button>
-        <button data-act="flip">Flip</button>
-        <button data-act="drop">Drop</button>
+      <div class="grid two">
+        <button data-act="ruffle">Ruffle<span class="key">R</span></button>
+        <button data-act="flip">Flip<span class="key">F</span></button>
+        <button data-act="drop">Drop<span class="key">D</span></button>
+        <button data-act="explode">Explode<span class="key">E</span></button>
       </div>
       <button class="accent" data-act="reset">Reset</button>
     </div>
@@ -151,15 +155,12 @@
     <div class="group">
       <label class="slider">
         <span class="lbl">Shine <span></span></span>
-        <input id="shine" type="range" min="0" max="100" value="62" />
+        <input id="shine" type="range" min="0" max="100" value="41" />
       </label>
     </div>
 
     <div class="hint">
       <b>Drag</b> a note to grab &amp; ruffle it. <b>Right-drag</b> or two-finger to orbit, scroll to zoom.
-      <div class="keys">
-        <kbd>A</kbd><kbd>S</kbd><kbd>F</kbd><kbd>R</kbd><kbd>Space</kbd>
-      </div>
     </div>
   </div>
 

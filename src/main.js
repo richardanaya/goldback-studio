@@ -134,12 +134,21 @@ function poseSpread() {
 }
 
 function poseStack() {
-  // A clean, aligned pile: every note shares one orientation and only differs
-  // in height, so they sit flush instead of intersecting.
-  _e.set(-Math.PI / 2, 0, 0.04);
-  _q.setFromEuler(_e);
+  // A loose pile: each note is flat but nudged with a tiny unique tilt and
+  // offset so the stack reads as a real handful of foil, not a perfect block.
   notes.forEach((n, i) => {
-    n.setPose(new THREE.Vector3(0, FLOOR_Y + 0.02 + i * 0.013, 0), _q.clone(), 1);
+    const tiltX = (Math.random() - 0.5) * 0.06;
+    const tiltY = (Math.random() - 0.5) * 0.08;
+    const tiltZ = 0.04 + (Math.random() - 0.5) * 0.05;
+    _e.set(-Math.PI / 2 + tiltX, tiltY, tiltZ);
+    _q.setFromEuler(_e);
+    const offX = (Math.random() - 0.5) * 0.04;
+    const offZ = (Math.random() - 0.5) * 0.04;
+    n.setPose(
+      new THREE.Vector3(offX, FLOOR_Y + 0.02 + i * 0.013, offZ),
+      _q.clone(),
+      1,
+    );
   });
 }
 
@@ -172,7 +181,13 @@ function drop() { notes.forEach((n) => { n.holdTarget = 0; }); }
 
 function ruffle() {
   windBurst = 7;
-  notes.forEach((n) => n.ruffle());
+  notes.forEach((n, i) => {
+    n.ruffle(i * 0.065 + Math.random() * 0.045);
+  });
+}
+
+function explode() {
+  notes.forEach((n) => n.explode());
 }
 
 // ---------- Note count ----------
@@ -263,7 +278,7 @@ document.getElementById('ui').addEventListener('click', (e) => {
   const act = e.target.closest('button')?.dataset.act;
   if (!act) return;
   ({ add: () => addNote(), remove: removeNote, stack: poseStack, fan: poseFan,
-     spread: poseSpread, ruffle, flip: poseFlip, drop, reset })[act]?.();
+     spread: poseSpread, ruffle, flip: poseFlip, drop, explode, reset })[act]?.();
 });
 
 const shineSlider = document.getElementById('shine');
@@ -272,11 +287,43 @@ shineSlider.addEventListener('input', () => {
   if (frontMat) { frontMat.roughness = 0.6 - v * 0.5; backMat.roughness = 0.65 - v * 0.5; }
 });
 
+const HOLD_ADD_KEYS = new Set(['a']);
+const HOLD_REMOVE_KEYS = new Set(['x']);
+const HOLD_REPEAT_INTERVAL = 0.13;
+const heldAddKeys = new Set();
+const heldRemoveKeys = new Set();
+let holdAddTimer = 0;
+let holdRemoveTimer = 0;
+
 window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if (HOLD_ADD_KEYS.has(key)) {
+    if (!heldAddKeys.has(key)) {
+      heldAddKeys.add(key);
+      addNote();
+    }
+    return;
+  }
+  if (HOLD_REMOVE_KEYS.has(key)) {
+    if (!heldRemoveKeys.has(key)) {
+      heldRemoveKeys.add(key);
+      removeNote();
+    }
+    return;
+  }
   if (e.repeat) return;
-  const map = { a: () => addNote(), s: poseStack, f: poseFan, r: ruffle, d: drop, x: removeNote };
-  if (e.key === ' ') { e.preventDefault(); drop(); return; }
-  map[e.key.toLowerCase()]?.();
+  const map = { e: explode, f: poseFlip, r: ruffle, d: drop };
+  map[key]?.();
+});
+
+window.addEventListener('keyup', (e) => {
+  const key = e.key.toLowerCase();
+  heldAddKeys.delete(key);
+  heldRemoveKeys.delete(key);
+});
+window.addEventListener('blur', () => {
+  heldAddKeys.clear();
+  heldRemoveKeys.clear();
 });
 
 // ---------- Loop ----------
@@ -289,6 +336,26 @@ function animate() {
   let dt = clock.getDelta();
   dt = Math.min(dt, 1 / 30);
   const time = clock.elapsedTime;
+
+  if (heldAddKeys.size) {
+    holdAddTimer += dt;
+    while (holdAddTimer >= HOLD_REPEAT_INTERVAL) {
+      holdAddTimer -= HOLD_REPEAT_INTERVAL;
+      for (const _ of heldAddKeys) addNote();
+    }
+  } else {
+    holdAddTimer = 0;
+  }
+
+  if (heldRemoveKeys.size) {
+    holdRemoveTimer += dt;
+    while (holdRemoveTimer >= HOLD_REPEAT_INTERVAL) {
+      holdRemoveTimer -= HOLD_REPEAT_INTERVAL;
+      for (const _ of heldRemoveKeys) removeNote();
+    }
+  } else {
+    holdRemoveTimer = 0;
+  }
 
   windBurst *= 0.94;
   wind.t = windBurst;
@@ -359,20 +426,21 @@ async function boot() {
 
   TEMPLATE = buildTemplate();
   addNote(true);
-  poseSpread();
-  notes[0].resetToAnchor();
+  for (let i = 0; i < 9; i++) addNote(true);
+  poseFan();
+  notes.forEach((n) => n.resetToAnchor());
+  flashCount();
 
   const loader = document.getElementById('loader');
   loader.style.opacity = '0';
   setTimeout(() => loader.remove(), 650);
 
   // Debug / console handle, plus a ?demo=fan|stack|spread hook for quick checks.
-  window.gb = { notes, addNote, poseFan, poseStack, poseSpread, drop, ruffle, scene, camera };
+  window.gb = { notes, addNote, poseFan, poseStack, poseSpread, drop, ruffle, explode, scene, camera };
   const demo = new URLSearchParams(location.search).get('demo');
   if (demo) {
-    for (let i = 0; i < 7; i++) addNote(true);
     ({ fan: poseFan, stack: poseStack, spread: poseSpread })[demo]?.();
-    flashCount();
+    notes.forEach((n) => n.resetToAnchor());
   }
 
   animate();
