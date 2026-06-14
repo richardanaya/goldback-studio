@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Interactive Goldback</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --gold: #e9c877;
+      --gold-bright: #ffe6a6;
+      --ink: #0c0b08;
+      --panel: rgba(22, 20, 15, 0.55);
+      --stroke: rgba(255, 255, 255, 0.09);
+      --muted: #9a9080;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink);
+      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    #app { position: fixed; inset: 0; }
+    canvas { display: block; touch-action: none; }
+
+    #ui {
+      position: fixed; left: 18px; top: 18px; z-index: 10;
+      display: flex; flex-direction: column; gap: 16px;
+      padding: 16px; width: 256px;
+      background: var(--panel);
+      backdrop-filter: blur(22px) saturate(1.4);
+      -webkit-backdrop-filter: blur(22px) saturate(1.4);
+      border: 1px solid var(--stroke);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06);
+      user-select: none;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand .dot {
+      width: 26px; height: 26px; border-radius: 8px; flex: none;
+      background: radial-gradient(120% 120% at 30% 25%, #fff1c8, #e9c877 45%, #a87f33);
+      box-shadow: 0 2px 10px rgba(233,200,119,0.4), inset 0 0 0 1px rgba(255,255,255,0.3);
+    }
+    .brand .title { display: flex; flex-direction: column; line-height: 1.1; }
+    .brand .title b { font-size: 14px; font-weight: 650; color: #f4ecdb; letter-spacing: 0.2px; }
+    .brand .title span { font-size: 9.5px; font-weight: 600; letter-spacing: 1.6px;
+      text-transform: uppercase; color: var(--muted); }
+    .brand .badge {
+      margin-left: auto; display: flex; align-items: baseline; gap: 4px;
+      padding: 5px 10px; border-radius: 999px;
+      background: rgba(233,200,119,0.12); border: 1px solid rgba(233,200,119,0.25);
+    }
+    .brand .badge b { font-size: 14px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+    .brand .badge span { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); }
+
+    .group { display: flex; flex-direction: column; gap: 8px; }
+    .group > label.head {
+      font-size: 10px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase;
+      color: var(--muted); padding-left: 2px;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+    .grid.two { grid-template-columns: 1fr 1fr; }
+
+    button {
+      appearance: none; cursor: pointer;
+      padding: 9px 6px; border-radius: 11px;
+      font-size: 12px; font-weight: 550; color: #ece4d4;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: background .15s ease, border-color .15s ease, transform .06s ease, color .15s ease;
+    }
+    button:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.16); }
+    button:active { transform: translateY(1px) scale(0.985); }
+    button.primary {
+      color: #2a1f08; font-weight: 650;
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 4px 14px -4px rgba(233,200,119,0.5);
+    }
+    button.primary:hover { filter: brightness(1.06); background: linear-gradient(180deg, #fff0cf, #efce82); }
+    button.accent { color: var(--gold-bright); border-color: rgba(233,200,119,0.28);
+      background: rgba(233,200,119,0.08); }
+    button.accent:hover { background: rgba(233,200,119,0.16); }
+
+    label.slider { display: flex; flex-direction: column; gap: 7px; }
+    label.slider .lbl { display: flex; justify-content: space-between; align-items: center;
+      font-size: 10px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); }
+    input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+      border-radius: 999px; background: rgba(255,255,255,0.12); outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px;
+      border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3d2, var(--gold));
+      border: 2px solid #2a2316; box-shadow: 0 2px 6px rgba(0,0,0,0.5); cursor: pointer; }
+    input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%;
+      background: var(--gold); border: 2px solid #2a2316; cursor: pointer; }
+
+    .hint { font-size: 10.5px; line-height: 1.6; color: #8c8474;
+      border-top: 1px solid var(--stroke); padding-top: 12px; }
+    .hint b { color: #b8af9c; font-weight: 600; }
+    .hint .keys { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .hint kbd { font-family: inherit; font-size: 9.5px; color: #cfc6b3;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      border-bottom-width: 2px; border-radius: 5px; padding: 2px 6px; }
+
+    #loader {
+      position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; background: var(--ink); color: var(--gold); font-size: 13px;
+      letter-spacing: 0.3px; transition: opacity .6s ease;
+    }
+    #loader .ring { width: 40px; height: 40px; border-radius: 50%;
+      border: 2.5px solid rgba(233,200,119,0.2); border-top-color: var(--gold-bright);
+      animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="ui">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="title"><b>Goldback</b><span>Studio</span></div>
+      <div class="badge"><b id="noteCount">1</b><span>notes</span></div>
+    </div>
+
+    <div class="group">
+      <label class="head">Quantity</label>
+      <div class="grid two">
+        <button class="primary" data-act="add">＋ Add</button>
+        <button data-act="remove">－ Remove</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="head">Arrange</label>
+      <div class="grid">
+        <button data-act="stack">Stack</button>
+        <button data-act="fan">Fan</button>
+        <button data-act="spread">Spread</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="head">Play</label>
+      <div class="grid">
+        <button data-act="ruffle">Ruffle</button>
+        <button data-act="flip">Flip</button>
+        <button data-act="drop">Drop</button>
+      </div>
+      <button class="accent" data-act="reset">Reset</button>
+    </div>
+
+    <div class="group">
+      <label class="slider">
+        <span class="lbl">Wind <span></span></span>
+        <input id="wind" type="range" min="0" max="100" value="0" />
+      </label>
+      <label class="slider">
+        <span class="lbl">Shine <span></span></span>
+        <input id="shine" type="range" min="0" max="100" value="62" />
+      </label>
+    </div>
+
+    <div class="hint">
+      <b>Drag</b> a note to grab &amp; ruffle it. <b>Right-drag</b> or two-finger to orbit, scroll to zoom.
+      <div class="keys">
+        <kbd>A</kbd><kbd>S</kbd><kbd>F</kbd><kbd>R</kbd><kbd>Space</kbd>
+      </div>
+    </div>
+  </div>
+
+  <div id="loader"><div class="ring"></div><div>Minting gold…</div></div>
+
+  <!-- No bundler needed: the import map resolves bare `three` specifiers to the
+       vendored ES modules, so any static server (e.g. python3 -m http.server) works. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/examples/jsm/": "./vendor/three/jsm/",
+      "three/addons/": "./vendor/three/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
