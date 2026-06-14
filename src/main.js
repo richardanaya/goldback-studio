@@ -67,6 +67,13 @@ function loadTex(url, srgb) {
 const loadColor = (u) => loadTex(u, true);
 const loadData = (u) => loadTex(u, false);
 
+// Back face uses BackSide on shared UVs, which mirrors art — flip maps to match print.
+function flipTexH(tex) {
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.x = -1;
+  tex.offset.x = 1;
+}
+
 let frontTex, backTex, frontMat, backMat;
 const notes = [];
 
@@ -427,6 +434,9 @@ async function boot() {
   hdr.colorSpace = THREE.LinearSRGBColorSpace;
 
   frontTex = fTex; backTex = bTex;
+  flipTexH(bTex);
+  flipTexH(bMetal);
+  flipTexH(bNormal);
 
   // Gold-foil PBR: printed art is the albedo, the embossed grayscale map drives
   // metalness + roughness + bump so the foil stamping actually catches light.
@@ -446,7 +456,7 @@ async function boot() {
   });
   backMat = new THREE.MeshStandardMaterial({
     map: backTex, metalnessMap: bMetal, normalMap: bNormal,
-    normalScale: new THREE.Vector2(0.8, 0.8),
+    normalScale: new THREE.Vector2(-0.8, 0.8), // negate X to match flipped normal UVs
     side: THREE.BackSide, ...common, roughness: baseRough + 0.05,
   });
   // subtle warm sheen in the metallic tint
