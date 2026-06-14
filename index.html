@@ -150,10 +150,6 @@
 
     <div class="group">
       <label class="slider">
-        <span class="lbl">Wind <span></span></span>
-        <input id="wind" type="range" min="0" max="100" value="0" />
-      </label>
-      <label class="slider">
         <span class="lbl">Shine <span></span></span>
         <input id="shine" type="range" min="0" max="100" value="62" />
       </label>
@@ -170,13 +166,15 @@
   <div id="loader"><div class="ring"></div><div>Minting gold…</div></div>
 
   <!-- No bundler needed: the import map resolves bare `three` specifiers to the
-       vendored ES modules, so any static server (e.g. python3 -m http.server) works. -->
+       CDN, so any static server (e.g. python3 -m http.server) works.
+       (Needs internet at runtime — for fully offline use, point these at the
+       local ./vendor/three/ copies instead.) -->
   <script type="importmap">
   {
     "imports": {
-      "three": "./vendor/three/three.module.js",
-      "three/examples/jsm/": "./vendor/three/jsm/",
-      "three/addons/": "./vendor/three/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+      "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
     }
   }
   </script>

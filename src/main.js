@@ -147,15 +147,15 @@ function poseFan() {
   const k = notes.length;
   const hingeY = -NOTE_H * 0.5;                 // shared hinge near the bottom
   const arc = Math.min(1.55, 0.17 * k);         // total in-plane splay
-  const curve = Math.min(0.85, 0.11 * k);       // gentle bow about the vertical axis
   notes.forEach((n, i) => {
     const t = k === 1 ? 0 : i / (k - 1) - 0.5;  // -0.5 .. 0.5
-    // splay (z) fans the cards out; bow (y) wraps the fan into a slight curve
-    _e.set(0, t * curve, -t * arc);
+    // Every card stays flat & parallel (facing the camera) and only fans out
+    // in-plane about the bottom hinge, so layering them in depth guarantees the
+    // cards never intersect or clip into one another.
+    _e.set(0, 0, -t * arc);
     _q.setFromEuler(_e);
     const offset = new THREE.Vector3(0, NOTE_H * 0.5, 0).applyQuaternion(_q);
-    // layer each card in depth so neighbours never share a plane / z-fight
-    offset.z += (i - (k - 1) / 2) * 0.03;
+    offset.z += (i - (k - 1) / 2) * 0.025;       // monotonic depth: clean layering
     n.setPose(new THREE.Vector3(0, hingeY, 0).add(offset), _q.clone(), 1);
   });
 }
@@ -266,7 +266,6 @@ document.getElementById('ui').addEventListener('click', (e) => {
      spread: poseSpread, ruffle, flip: poseFlip, drop, reset })[act]?.();
 });
 
-const windSlider = document.getElementById('wind');
 const shineSlider = document.getElementById('shine');
 shineSlider.addEventListener('input', () => {
   const v = +shineSlider.value / 100;
@@ -281,7 +280,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------- Loop ----------
-let windBurst = 0;
+let windBurst = 0; // transient gust from Ruffle; decays each frame
 const wind = { x: 0, z: 0, t: 0 };
 const clock = new THREE.Clock();
 
@@ -291,11 +290,8 @@ function animate() {
   dt = Math.min(dt, 1 / 30);
   const time = clock.elapsedTime;
 
-  const slider = +windSlider.value / 100;
   windBurst *= 0.94;
-  wind.x = Math.sin(time * 0.6) * slider * 3.2;
-  wind.z = Math.cos(time * 0.4) * slider * 1.6;
-  wind.t = slider * 2.2 + windBurst;
+  wind.t = windBurst;
 
   for (const n of notes) {
     n.step(dt, wind, time);
